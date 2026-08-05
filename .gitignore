@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+.venv/
+node_modules/
+.pnpm-store/
+dist/
+coverage/
+*.db
+*.log
+*.egg-info/

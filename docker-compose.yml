@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: promptforge
+      POSTGRES_USER: promptforge
+      POSTGRES_PASSWORD: promptforge_local_only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U promptforge -d promptforge"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql+psycopg://promptforge:promptforge_local_only@postgres:5432/promptforge
+      FRONTEND_ORIGINS: http://localhost:5173
+      JWT_SECRET_KEY: change-this-local-development-secret-to-a-long-random-value
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build: ./frontend
+    environment:
+      VITE_API_URL: http://localhost:8000/api/v1
+    depends_on:
+      - backend
+    ports:
+      - "5173:5173"
+
+volumes:
+  postgres_data:
+

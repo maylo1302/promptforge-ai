@@ -1,0 +1,25 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Heart, Search, SlidersHorizontal, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { PageHeading } from "../components/layout/AppShell";
+import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
+import { Card } from "../components/ui/card";
+import { api } from "../lib/api";
+import { formatDate } from "../lib/utils";
+import type { Prompt } from "../types";
+
+type Response = { items: Prompt[]; total: number };
+
+export function HistoryPage() {
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("");
+  const [favorite, setFavorite] = useState(false);
+  const queryClient = useQueryClient();
+  const params = new URLSearchParams({ page_size: "50", ...(search ? { search } : {}), ...(category ? { category } : {}), ...(favorite ? { favorite: "true" } : {}) });
+  const { data, isLoading } = useQuery({ queryKey: ["prompts", search, category, favorite], queryFn: () => api<Response>(`/prompts?${params}`) });
+  const update = async (prompt: Prompt, changes: Partial<Prompt>) => { await api(`/prompts/${prompt.id}`, { method: "PATCH", body: JSON.stringify(changes) }); queryClient.invalidateQueries({ queryKey: ["prompts"] }); queryClient.invalidateQueries({ queryKey: ["dashboard"] }); };
+  const remove = async (prompt: Prompt) => { if (!window.confirm("Usunąć ten prompt z historii?")) return; await api(`/prompts/${prompt.id}`, { method: "DELETE" }); queryClient.invalidateQueries({ queryKey: ["prompts"] }); queryClient.invalidateQueries({ queryKey: ["dashboard"] }); };
+  return <><PageHeading eyebrow="Biblioteka promptów" title="Historia pracy" description="Wyszukuj, filtruj, taguj i wracaj do promptów, które już się sprawdziły." /><Card className="p-4"><div className="flex flex-col gap-3 md:flex-row"><label className="relative flex-1"><Search className="absolute left-3 top-3 text-slate-400" size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} className="input pl-10" placeholder="Szukaj w opisie lub treści promptu…" /></label><select value={category} onChange={(event) => setCategory(event.target.value)} className="input md:w-52"><option value="">Wszystkie kategorie</option><option value="programming">Programowanie</option><option value="marketing">Marketing</option><option value="business">Biznes</option><option value="copywriting">Copywriting</option><option value="other">Inne</option></select><Button variant={favorite ? "primary" : "secondary"} onClick={() => setFavorite(!favorite)}><Heart size={16} fill={favorite ? "currentColor" : "none"} />Ulubione</Button></div></Card><div className="mt-5 flex items-center justify-between text-sm text-slate-500"><span>{isLoading ? "Pobieramy historię…" : `${data?.total ?? 0} promptów`}</span><span className="inline-flex items-center gap-2"><SlidersHorizontal size={15} />Najnowsze na górze</span></div><div className="mt-4 grid gap-3">{data?.items.map((prompt) => <Card key={prompt.id} className="group p-5"><div className="flex flex-col gap-4 sm:flex-row sm:items-start"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><Badge tone={prompt.status === "generated" ? "green" : "amber"}>{prompt.status === "generated" ? "Wygenerowany" : "Wymaga odpowiedzi"}</Badge>{prompt.quality_score && <Badge tone="violet">Jakość {prompt.quality_score}/100</Badge>}<span className="text-xs text-slate-400">{formatDate(prompt.updated_at)}</span></div><h2 className="mt-3 line-clamp-1 font-bold">{prompt.brief}</h2><p className="mt-1 line-clamp-2 text-sm leading-relaxed text-slate-500 dark:text-slate-400">{prompt.content ?? "Oczekuje na Twoje odpowiedzi doprecyzowujące."}</p><div className="mt-3 flex flex-wrap gap-1.5">{[prompt.category, ...prompt.tags].map((tag) => <span key={tag} className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-500 dark:bg-white/10 dark:text-slate-300">#{tag}</span>)}</div></div><div className="flex shrink-0 gap-1 self-end opacity-100 transition sm:self-start sm:opacity-0 sm:group-hover:opacity-100"><button onClick={() => update(prompt, { is_favorite: !prompt.is_favorite })} className="rounded-xl p-2.5 text-slate-400 hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-500/10" aria-label="Zmień ulubione"><Heart size={18} fill={prompt.is_favorite ? "currentColor" : "none"} className={prompt.is_favorite ? "text-rose-500" : ""} /></button><button onClick={() => void remove(prompt)} className="rounded-xl p-2.5 text-slate-400 hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-500/10" aria-label="Usuń"><Trash2 size={18} /></button></div></div></Card>)}{!isLoading && !data?.items.length && <Card className="grid min-h-64 place-items-center text-center"><div><Search className="mx-auto text-slate-300" size={30} /><h2 className="mt-4 font-bold">Nie znaleźliśmy promptów</h2><p className="mt-1 text-sm text-slate-500">Zmień kryteria wyszukiwania albo utwórz nowy prompt.</p></div></Card>}</div></>;
+}
+

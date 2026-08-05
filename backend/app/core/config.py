@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
     anthropic_model: str = "claude-sonnet-4-20250514"
     frontend_url: str = "http://localhost:5173"
+    brevo_api_key: str | None = None
+    email_from_name: str = "PromptForge AI"
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_username: str | None = None

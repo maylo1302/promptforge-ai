@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { CheckCircle2, ChevronDown, FileText, Layers3, ShieldCheck, Sparkles, UserRound } from "lucide-react";
+import { CheckCircle2, ChevronDown, FileText, Layers3, ShieldCheck, Sparkles, UserPlus, UserRound } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Logo } from "../components/Logo";
@@ -23,11 +23,8 @@ export function LandingPage() {
   return <div className="overflow-hidden">
     <header className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 lg:px-10">
       <Logo />
-      <nav className="hidden items-center gap-7 text-sm font-semibold text-slate-500 md:flex">
-        <a href="#funkcje" className="hover:text-slate-950 dark:hover:text-white">Funkcje</a>
-        <a href="#faq" className="hover:text-slate-950 dark:hover:text-white">FAQ</a>
-      </nav>
-      <Link to="/logowanie"><Button><UserRound size={16} />Zaloguj się</Button></Link>
+      <nav className="hidden items-center gap-7 text-sm font-semibold text-slate-500 md:flex"><a href="#funkcje" className="hover:text-slate-950 dark:hover:text-white">Funkcje</a><a href="#faq" className="hover:text-slate-950 dark:hover:text-white">FAQ</a></nav>
+      <div className="flex items-center gap-2"><Link to="/logowanie?tryb=rejestracja"><Button variant="ghost"><UserPlus size={16} />Zarejestruj się</Button></Link><Link to="/logowanie"><Button><UserRound size={16} />Zaloguj się</Button></Link></div>
     </header>
     <main>
       <section className="relative mx-auto max-w-7xl px-5 pb-24 pt-16 text-center lg:px-10 lg:pb-32 lg:pt-24">

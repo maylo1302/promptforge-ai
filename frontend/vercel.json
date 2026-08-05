@@ -1,2 +1,9 @@
-{ "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }] }
-
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://promptforge-api-7rgp.onrender.com/api/:path*"
+    },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

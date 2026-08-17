@@ -13,9 +13,11 @@ router = APIRouter(prefix="/auth", tags=["Uwierzytelnianie"])
 
 
 def set_auth_cookies(response: Response, refresh_token: str, csrf_token: str) -> None:
-    common = {"secure": settings.is_production, "samesite": "lax", "path": "/api/v1/auth"}
-    response.set_cookie("refresh_token", refresh_token, httponly=True, max_age=settings.refresh_token_expire_days * 86400, **common)
-    response.set_cookie("csrf_token", csrf_token, httponly=False, max_age=settings.refresh_token_expire_days * 86400, **common)
+    common = {"secure": settings.is_production, "samesite": "lax"}
+    response.set_cookie("refresh_token", refresh_token, httponly=True, max_age=settings.refresh_token_expire_days * 86400, path="/api/v1/auth", **common)
+    # Kod aplikacji odczytuje token CSRF po wejściu na /app/*, dlatego musi on być widoczny
+    # poza ścieżką API. Sam token odświeżania pozostaje ograniczony do endpointów autoryzacji.
+    response.set_cookie("csrf_token", csrf_token, httponly=False, max_age=settings.refresh_token_expire_days * 86400, path="/", **common)
 
 
 def issue_tokens(response: Response, db: DbSession, user: User) -> AuthResponse:
@@ -31,6 +33,13 @@ def issue_tokens(response: Response, db: DbSession, user: User) -> AuthResponse:
 def enforce_csrf(request: Request, csrf_cookie: str | None) -> None:
     if not csrf_cookie or request.headers.get("X-CSRF-Token") != csrf_cookie:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Nieprawidłowy token CSRF.")
+
+
+def has_expired(expires_at: datetime) -> bool:
+    """SQLite may return a naive datetime even for timezone-aware model fields."""
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    return expires_at < datetime.now(timezone.utc)
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -60,7 +69,7 @@ def refresh(request: Request, response: Response, db: DbSession, refresh_token: 
     if not refresh_token:
         raise HTTPException(status_code=401, detail="Brak sesji do odświeżenia.")
     stored = db.scalar(select(RefreshToken).where(RefreshToken.token_hash == token_fingerprint(refresh_token), RefreshToken.revoked_at.is_(None)))
-    if stored is None or stored.expires_at < datetime.now(timezone.utc):
+    if stored is None or has_expired(stored.expires_at):
         raise HTTPException(status_code=401, detail="Sesja wygasła. Zaloguj się ponownie.")
     user = db.get(User, stored.user_id)
     if user is None or not user.is_active:
@@ -76,7 +85,7 @@ def logout(request: Request, response: Response, db: DbSession, refresh_token: s
         db.execute(update(RefreshToken).where(RefreshToken.token_hash == token_fingerprint(refresh_token)).values(revoked_at=datetime.now(timezone.utc)))
         db.commit()
     response.delete_cookie("refresh_token", path="/api/v1/auth")
-    response.delete_cookie("csrf_token", path="/api/v1/auth")
+    response.delete_cookie("csrf_token", path="/")
     return Message(message="Wylogowano pomyślnie.")
 
 
@@ -106,7 +115,7 @@ def request_password_reset(payload: PasswordResetRequest, db: DbSession) -> Mess
 @router.post("/password-reset/confirm", response_model=Message)
 def confirm_password_reset(payload: PasswordResetConfirm, db: DbSession) -> Message:
     record = db.scalar(select(PasswordResetToken).where(PasswordResetToken.token_hash == token_fingerprint(payload.token), PasswordResetToken.used_at.is_(None)))
-    if record is None or record.expires_at < datetime.now(timezone.utc):
+    if record is None or has_expired(record.expires_at):
         raise HTTPException(status_code=400, detail="Link do zmiany hasła jest nieważny lub wygasł.")
     user = db.get(User, record.user_id)
     if user is None:

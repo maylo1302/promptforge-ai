@@ -28,6 +28,21 @@ def test_user_can_complete_prompt_flow_and_export_markdown() -> None:
         assert "# Prompt dla ChatGPT" in exported.text
 
 
+def test_refresh_session_works_after_reloading_an_app_page() -> None:
+    email = f"refresh-{uuid4()}@example.com"
+    password = "bardzo-bezpieczne-haslo-123"
+    with TestClient(app) as client:
+        assert client.post("/api/v1/auth/register", json={"email": email, "password": password, "first_name": "Jan", "last_name": "Testowy"}).status_code == 201
+        login = client.post("/api/v1/auth/login", json={"email": email, "password": password})
+        assert login.status_code == 200
+        csrf_cookie = next(value for value in login.headers.get_list("set-cookie") if value.startswith("csrf_token="))
+        assert "Path=/;" in csrf_cookie
+
+        refreshed = client.post("/api/v1/auth/refresh", headers={"X-CSRF-Token": login.json()["csrf_token"]})
+        assert refreshed.status_code == 200
+        assert refreshed.json()["access_token"]
+
+
 def test_draft_can_be_resumed_edited_and_deleted_after_reload() -> None:
     email = f"resume-{uuid4()}@example.com"
     password = "bardzo-bezpieczne-haslo-123"

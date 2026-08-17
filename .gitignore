@@ -11,5 +11,7 @@ node_modules/
 dist/
 coverage/
 *.db
+frontend/test-results/
+frontend/playwright-report/
 *.log
 *.egg-info/

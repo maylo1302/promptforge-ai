@@ -6,6 +6,17 @@ export class ApiError extends Error {
   constructor(public readonly status: number, message: string) { super(message); }
 }
 
+function readErrorMessage(body: unknown): string {
+  if (!body || typeof body !== "object" || !("detail" in body)) return "Wystąpił nieoczekiwany błąd.";
+  const detail = body.detail;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const messages = detail.flatMap((item) => item && typeof item === "object" && "msg" in item && typeof item.msg === "string" ? [item.msg] : []);
+    return messages.length ? messages.join(" ") : "Sprawdź poprawność danych formularza.";
+  }
+  return "Wystąpił nieoczekiwany błąd.";
+}
+
 export const session = {
   set: (token: string | null, csrf: string | null) => { accessToken = token; csrfToken = csrf; },
   clear: () => { accessToken = null; csrfToken = null; },
@@ -21,7 +32,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   const response = await fetch(`${API_URL}${path}`, { ...options, headers, credentials: "include" });
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new ApiError(response.status, body?.detail ?? "Wystąpił nieoczekiwany błąd.");
+    throw new ApiError(response.status, readErrorMessage(body));
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;

@@ -15,6 +15,16 @@ class GenerationResult:
 class PromptEngine:
     vague_terms = {"coś", "czegokolwiek", "pomóż", "zrób", "stwórz", "napisz"}
     generic_phrases = {"ma działać", "po prostu", "jakoś", "dobrze", "fajnie", "najlepiej", "wszystko", "szybko"}
+    stop_words = {"aby", "ale", "bardzo", "będzie", "być", "dla", "jest", "jaki", "jakie", "jako", "lub", "ma", "mnie", "moja", "moje", "oraz", "po", "przez", "się", "ten", "tego", "tej", "to", "wraz", "zostać"}
+    evidence_groups = {
+        "ograniczenia": ("limit", "budżet", "nie ", "bez ", "zgodn", "wyłącznie", "ryzyko"),
+        "dane": ("dane", "plik", "api", "źródł", "baza", "dokument", "brief"),
+        "termin": ("termin", "data", "tydzień", "miesiąc", "deadline", "do końca"),
+        "przykład": ("np.", "przykład", "wzór", "referenc"),
+        "sukces": ("kryter", "mierzal", "akceptac", "sukces", "kpi"),
+    }
+    format_markers = ("format", "tabela", "lista", "markdown", "json", "pdf", "slajd", "raport")
+    audience_markers = ("dla ", "odbior", "klient", "użytkownik", "zespół", "początkują", "programist", "zarząd")
     category_roles = {
         "programming": "inżynierem oprogramowania",
         "marketing": "specjalistą marketingu",
@@ -43,61 +53,88 @@ class PromptEngine:
             questions.append("Jakie ograniczenia, dane wejściowe lub kryteria akceptacji są najważniejsze?")
         return questions[:3]
 
-    def quality_assessment(self, prompt: Prompt) -> tuple[int, dict[str, object]]:
-        """Measures completeness of inputs; it is not an AI-model score."""
-        brief = prompt.brief.strip()
-        answers = [answer.strip() for answer in prompt.answers.values() if answer.strip()]
-        all_text = " ".join([brief, *answers]).lower()
-        brief_words = findall(r"\w+", brief)
-        answer_words = sum(len(findall(r"\w+", answer)) for answer in answers)
-        generic_count = sum(all_text.count(phrase) for phrase in self.generic_phrases)
-        concrete_markers = ("np.", "przykład", "termin", "budżet", "limit", "liczb", "data", "nie ", "mus", "zakres", "kryter")
-        format_markers = ("format", "tabela", "lista", "markdown", "json", "pdf", "slajd", "raport")
-        audience_markers = ("dla ", "odbior", "klient", "użytkownik", "zespół", "początkują")
+    def meaningful_words(self, text: str) -> list[str]:
+        return [word for word in findall(r"\w+", text.lower()) if len(word) > 2 and word not in self.stop_words]
 
-        goal = min(30, 8 + min(18, len(brief_words)) + (4 if any(char.isdigit() for char in brief) else 0))
-        context = min(25, min(15, answer_words // 4) + min(10, len(answers) * 4))
-        constraints = min(20, sum(marker in all_text for marker in concrete_markers) * 4)
-        format_score = 15 if any(marker in all_text for marker in format_markers) else 3
-        audience_score = 10 if any(marker in all_text for marker in audience_markers) else 2
-        vagueness_penalty = min(24, generic_count * 8)
-        raw_score = goal + context + constraints + format_score + audience_score - vagueness_penalty
-        score = max(20, min(100, raw_score))
+    def generic_hits(self, text: str) -> int:
+        return sum(text.lower().count(phrase) for phrase in self.generic_phrases)
+
+    def answer_detail(self, answer: str) -> float:
+        """Returns 0..1 for the informational density of one clarification answer."""
+        if self.generic_hits(answer):
+            return 0.0
+        words = self.meaningful_words(answer)
+        unique_words = len(set(words))
+        evidence = sum(any(marker in answer.lower() for marker in markers) for markers in self.evidence_groups.values())
+        evidence += int(any(marker in answer.lower() for marker in self.format_markers))
+        evidence += int(any(marker in answer.lower() for marker in self.audience_markers))
+        return min(1.0, unique_words / 12 + evidence * 0.18)
+
+    def quality_assessment(self, prompt: Prompt) -> tuple[int, dict[str, object]]:
+        """Scores the completeness and specificity of a user's inputs, not AI output quality."""
+        brief = prompt.brief.strip()
+        prompt_answers = prompt.answers or {}
+        answers = [answer.strip() for answer in prompt_answers.values() if answer.strip()]
+        all_text = " ".join([brief, *answers]).lower()
+        brief_words = self.meaningful_words(brief)
+        expected_answers = max(len(prompt.questions or []), len(answers), 1)
+        completion_ratio = min(1.0, len(answers) / expected_answers)
+        detail_ratio = sum(self.answer_detail(answer) for answer in answers) / len(answers) if answers else 0.0
+        evidence_count = sum(any(marker in all_text for marker in markers) for markers in self.evidence_groups.values())
+        has_format = any(marker in all_text for marker in self.format_markers)
+        has_audience = any(marker in all_text for marker in self.audience_markers)
+
+        goal = min(25, 4 + min(14, len(brief_words)) + (3 if len(set(brief_words)) >= 7 else 0) + (4 if any(char.isdigit() for char in brief) else 0))
+        context = round(14 * completion_ratio + 11 * detail_ratio)
+        constraints = min(20, evidence_count * 4 + (4 if any(char.isdigit() for char in all_text) else 0))
+        format_score = 15 if has_format else 0
+        audience_score = 10 if has_audience else 0
+        normalized_answers = [" ".join(self.meaningful_words(answer)) for answer in answers]
+        duplicate_answers = max(0, len(normalized_answers) - len(set(normalized_answers)))
+        coherence = 0 if not answers else 3 if len(answers) == 1 else 5 if duplicate_answers == 0 else 1
+        vagueness_penalty = min(30, self.generic_hits(all_text) * 6)
+        repetition_penalty = min(12, duplicate_answers * 5)
+        raw_score = goal + context + constraints + format_score + audience_score + coherence - vagueness_penalty - repetition_penalty
+        score = max(0, min(100, raw_score))
 
         breakdown = {
             "Cel i zakres": goal,
-            "Kontekst i dane wejściowe": context,
-            "Ograniczenia i kryteria": constraints,
+            "Odpowiedzi na pytania": context,
+            "Konkretne dane i ograniczenia": constraints,
             "Format rezultatu": format_score,
             "Odbiorca": audience_score,
+            "Spójność odpowiedzi": coherence,
             "Kara za ogólniki": -vagueness_penalty,
+            "Kara za powtórzenia": -repetition_penalty,
         }
-        thresholds = {"Cel i zakres": 22, "Kontekst i dane wejściowe": 16, "Ograniczenia i kryteria": 12, "Format rezultatu": 12, "Odbiorca": 8}
+        thresholds = {"Cel i zakres": 18, "Odpowiedzi na pytania": 18, "Konkretne dane i ograniczenia": 12, "Format rezultatu": 12, "Odbiorca": 8, "Spójność odpowiedzi": 4}
         strengths = [name for name, value in breakdown.items() if name in thresholds and value >= thresholds[name]]
         weaknesses: list[str] = []
         missing: list[str] = []
-        if context < 16:
-            weaknesses.append("Doprecyzowania są zbyt krótkie lub zbyt ogólne.")
+        if context < 18:
+            weaknesses.append("Odpowiedzi nie pokrywają jeszcze wszystkich pytań lub są zbyt krótkie.")
             missing.append("Dane wejściowe, przykłady albo szczegóły użycia rezultatu.")
         if constraints < 12:
-            weaknesses.append("Nie opisano wystarczająco ograniczeń ani kryteriów akceptacji.")
-            missing.append("Ograniczenia, termin, budżet lub mierzalne kryteria sukcesu.")
-        if format_score < 12:
+            weaknesses.append("Brakuje konkretnych danych, ograniczeń albo kryteriów akceptacji.")
+            missing.append("Termin, budżet, dane wejściowe lub mierzalne kryteria sukcesu.")
+        if not has_format:
             weaknesses.append("Format oczekiwanego rezultatu nie jest jasno określony.")
             missing.append("Preferowany format, np. tabela, lista, JSON lub raport.")
-        if audience_score < 8:
+        if not has_audience:
             weaknesses.append("Nie wskazano odbiorcy ani poziomu wiedzy.")
             missing.append("Odbiorca, jego cel i poziom zaawansowania.")
         if vagueness_penalty:
             weaknesses.append("Wykryto ogólnikowe sformułowania; obniżają przewidywalność wyniku.")
+        if repetition_penalty:
+            weaknesses.append("Część odpowiedzi się powtarza, więc nie wnosi nowego kontekstu.")
 
         analysis = {
             "strengths": [f"Dobrze opisano: {name.lower()}." for name in strengths] or ["Brief zawiera podstawowy cel zadania."],
             "weaknesses": weaknesses,
             "missing_information": list(dict.fromkeys(missing)),
-            "suggestions": ["Dodaj przykład poprawnego rezultatu.", "Zastąp ogólniki mierzalnymi wymaganiami."],
+            "suggestions": ["Dodaj przykład poprawnego rezultatu.", "Zastąp ogólniki konkretnymi danymi, ograniczeniami lub kryteriami."],
             "quality_breakdown": breakdown,
-            "quality_explanation": "To ocena kompletności danych wejściowych, a nie ocena jakości odpowiedzi modelu AI.",
+            "quality_explanation": "To deterministyczna ocena kompletności opisu i odpowiedzi: cel, pokrycie pytań, dane, format, odbiorca i spójność. Nie jest oceną jakości odpowiedzi modelu AI.",
         }
         return score, analysis
 

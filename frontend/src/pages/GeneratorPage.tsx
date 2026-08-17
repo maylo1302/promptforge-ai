@@ -60,6 +60,7 @@ export function GeneratorPage() {
       const next = await api<Prompt>("/prompts", { method: "POST", body: JSON.stringify(values) });
       setPrompt(next);
       setAnswers(next.answers);
+      form.reset({ brief: next.brief, model_target: next.model_target, level: next.level, category: next.category });
       setEditing(false);
       setSearchParams({});
       await queryClient.invalidateQueries({ queryKey: ["prompts"] });
@@ -109,6 +110,13 @@ export function GeneratorPage() {
     }
   };
   const allAnswered = Boolean(prompt?.questions.length && prompt.questions.every((question) => answers[question]?.trim()));
+  const currentValues = form.watch();
+  const draftIsOutdated = Boolean(prompt && (
+    currentValues.brief.trim() !== prompt.brief
+    || currentValues.model_target !== prompt.model_target
+    || currentValues.level !== prompt.level
+    || currentValues.category !== prompt.category
+  ));
 
   return <>
     <PageHeading eyebrow="Generator promptów" title={draftId ? "Kontynuuj zapisany szkic" : "Opisz, co chcesz osiągnąć"} description={draftId ? "Szkic został wcześniej zapisany. Uzupełnij brakujące odpowiedzi, aby go dokończyć." : "Nie musisz znać idealnego promptu. Zacznij od celu — pomożemy wydobyć kontekst, który zmienia wynik."} />
@@ -123,8 +131,9 @@ export function GeneratorPage() {
       </form></Card>
       {loadingDraft && <Card className="grid min-h-64 place-items-center"><LoaderCircle className="animate-spin text-violet-600" size={24} /></Card>}
       {!loadingDraft && !prompt && <StarterPanel />}
-      {!loadingDraft && prompt?.status === "needs_clarification" && <Questions prompt={prompt} answers={answers} setAnswers={setAnswers} onAnswer={answer} disabled={!allAnswered || answering} />}
-      {!loadingDraft && prompt?.status === "generated" && <Result prompt={prompt} editing={editing} setEditing={setEditing} onUpdate={update} onCopy={copy} copied={copied} />}
+      {!loadingDraft && draftIsOutdated && <OutdatedDraftPanel />}
+      {!loadingDraft && !draftIsOutdated && prompt?.status === "needs_clarification" && <Questions prompt={prompt} answers={answers} setAnswers={setAnswers} onAnswer={answer} disabled={!allAnswered || answering} />}
+      {!loadingDraft && !draftIsOutdated && prompt?.status === "generated" && <Result prompt={prompt} editing={editing} setEditing={setEditing} onUpdate={update} onCopy={copy} copied={copied} />}
     </div>
   </>;
 }
@@ -135,6 +144,10 @@ function Select({ label, children, id, ...props }: React.SelectHTMLAttributes<HT
 
 function StarterPanel() {
   return <Card className="relative overflow-hidden bg-gradient-to-br from-[#17112f] to-[#30226a] text-white dark:border-violet-400/20"><div className="absolute -right-16 -top-16 size-56 rounded-full bg-fuchsia-500/25 blur-3xl" /><Sparkles className="relative text-violet-200" size={28} /><h2 className="relative mt-8 text-3xl font-black tracking-tight">Zamieniamy intuicję w jasną instrukcję.</h2><ol className="relative mt-8 space-y-5 text-sm text-violet-100">{[["1", "Opisujesz cel własnymi słowami."], ["2", "Zapisujemy szkic i doprecyzowujemy brakujący kontekst."], ["3", "Otrzymujesz prompt oraz ocenę kompletności briefu."]].map(([number, copy]) => <li className="flex items-center gap-4" key={number}><span className="grid size-8 place-items-center rounded-full border border-violet-300/30 font-black">{number}</span>{copy}</li>)}</ol></Card>;
+}
+
+function OutdatedDraftPanel() {
+  return <Card className="border-amber-200 bg-amber-50/70 dark:border-amber-400/20 dark:bg-amber-500/10"><div className="flex size-11 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200"><Edit3 size={22} /></div><h2 className="mt-5 text-xl font-black">Opis został zmieniony</h2><p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">Widoczne wcześniej pytania należą do poprzedniego szkicu. Kliknij „Przeanalizuj i zapisz szkic”, aby utworzyć nowy szkic i otrzymać pytania dopasowane do aktualnego opisu.</p></Card>;
 }
 
 function Questions({ prompt, answers, setAnswers, onAnswer, disabled }: { prompt: Prompt; answers: Record<string, string>; setAnswers: (value: Record<string, string>) => void; onAnswer: () => Promise<void>; disabled: boolean }) {

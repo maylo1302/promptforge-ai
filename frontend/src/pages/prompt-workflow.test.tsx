@@ -53,6 +53,23 @@ describe("workflow promptów", () => {
     expect(screen.getByRole("heading", { name: "Pytania dopasowane do Twojego zadania" })).toBeInTheDocument();
   });
 
+  it("nie pokazuje pytań poprzedniego szkicu po zmianie opisu", async () => {
+    const draft: Prompt = { ...prompt, status: "needs_clarification", content: null, quality_score: null, questions: ["Jaki jest termin realizacji?"] };
+    vi.mocked(api).mockResolvedValueOnce(draft);
+
+    renderPage(<Routes><Route path="/app/generator" element={<GeneratorPage />} /></Routes>, "/app/generator");
+    const brief = screen.getByLabelText("Co chcesz osiągnąć?");
+    const submit = screen.getByRole("button", { name: "Przeanalizuj i zapisz szkic" });
+    fireEvent.change(brief, { target: { value: "Przygotuj plan wdrożenia dla zespołu operacyjnego." } });
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.click(submit);
+    expect(await screen.findByRole("heading", { name: "Pytania dopasowane do Twojego zadania" })).toBeInTheDocument();
+
+    fireEvent.change(brief, { target: { value: "Przetłumacz regulamin sklepu internetowego na angielski." } });
+    expect(screen.getByRole("heading", { name: "Opis został zmieniony" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Pytania dopasowane do Twojego zadania" })).not.toBeInTheDocument();
+  });
+
   it("otwiera pełny prompt i kopiuje jego treść", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.assign(navigator, { clipboard: { writeText } });

@@ -22,6 +22,21 @@ def test_questions_match_detected_domain_and_skip_already_described_context() ->
     assert prompt_engine.clarification_questions(complete_translation, "other") == []
 
 
+def test_translation_request_is_not_mistaken_for_legal_analysis_due_to_a_regulation_document() -> None:
+    brief = (
+        "Przetłumacz regulamin sklepu internetowego z polskiego na angielski brytyjski. "
+        "Odbiorcami są klienci w Wielkiej Brytanii. Zachowaj formalny styl oraz strukturę nagłówków. "
+        "Wynik zwróć w Markdown."
+    )
+
+    profile = prompt_engine.classify_task(brief, "other")
+    assert profile is not None
+    assert profile.slug == "translation"
+    questions = prompt_engine.clarification_questions(brief, "other")
+    assert len(questions) == 1
+    assert questions[0].startswith("Terminologia")
+
+
 def test_follow_up_questions_only_cover_the_remaining_gap() -> None:
     brief = "Przetłumacz instrukcję obsługi produktu dla klientów biznesowych."
     questions = prompt_engine.clarification_questions(brief, "translation")

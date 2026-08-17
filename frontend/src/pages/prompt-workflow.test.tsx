@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HistoryPage } from "./HistoryPage";
+import { GeneratorPage } from "./GeneratorPage";
 import { PromptDetailPage } from "./PromptDetailPage";
 import { api } from "../lib/api";
 import type { Prompt } from "../types";
@@ -36,6 +37,22 @@ const renderPage = (element: React.ReactNode, entry = "/app/historia") => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("workflow promptów", () => {
+  it("blokuje analizę pustego opisu i zapisuje szkic dopiero po jawnym kliknięciu", async () => {
+    const draft: Prompt = { ...prompt, status: "needs_clarification", content: null, quality_score: null, questions: ["Jaki jest termin realizacji?"] };
+    vi.mocked(api).mockResolvedValueOnce(draft);
+
+    renderPage(<Routes><Route path="/app/generator" element={<GeneratorPage />} /></Routes>, "/app/generator");
+    const submit = screen.getByRole("button", { name: "Przeanalizuj i zapisz szkic" });
+    expect(submit).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Co chcesz osiągnąć?"), { target: { value: "Przygotuj plan wdrożenia dla zespołu operacyjnego." } });
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.click(submit);
+
+    await waitFor(() => expect(api).toHaveBeenCalledWith("/prompts", expect.objectContaining({ method: "POST" })));
+    expect(await screen.findByText(/Szkic został zapisany w historii/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Zanim wygenerujemy prompt" })).toBeInTheDocument();
+  });
+
   it("otwiera pełny prompt i kopiuje jego treść", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.assign(navigator, { clipboard: { writeText } });

@@ -16,6 +16,8 @@ export interface Analysis {
   weaknesses: string[];
   missing_information: string[];
   suggestions: string[];
+  quality_breakdown: Record<string, number>;
+  quality_explanation: string;
 }
 
 export interface Prompt {
@@ -43,4 +45,3 @@ export interface DashboardData {
   average_quality_score: number | null;
   recent_prompts: Prompt[];
 }
-

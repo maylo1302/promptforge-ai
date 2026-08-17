@@ -82,6 +82,8 @@ class PromptAnalysis(BaseModel):
     weaknesses: list[str] = Field(default_factory=list)
     missing_information: list[str] = Field(default_factory=list)
     suggestions: list[str] = Field(default_factory=list)
+    quality_breakdown: dict[str, int] = Field(default_factory=dict)
+    quality_explanation: str = ""
 
 
 class PromptResponse(BaseModel):

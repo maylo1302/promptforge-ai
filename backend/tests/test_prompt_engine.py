@@ -13,3 +13,17 @@ def test_generator_creates_structured_prompt() -> None:
     assert "## Rola" in result.content
     assert "## Kryteria sukcesu i checklista" in result.content
     assert 0 <= result.score <= 100
+    assert "Kara za ogólniki" in result.analysis["quality_breakdown"]
+
+
+def test_generic_answers_receive_a_low_completeness_score() -> None:
+    prompt = Prompt(
+        brief="Chcę zbudować prostą aplikację.",
+        model_target="chatgpt",
+        level="professional",
+        category="programming",
+        answers={"Rezultat": "ma działać", "Odbiorca": "ma działać", "Format": "ma działać"},
+    )
+    result = prompt_engine.generate(prompt)
+    assert result.score < 60
+    assert result.analysis["quality_breakdown"]["Kara za ogólniki"] < 0

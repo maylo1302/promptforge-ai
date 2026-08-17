@@ -33,7 +33,7 @@ test("użytkownik tworzy, kopiuje, odnajduje i usuwa prompt po odświeżeniu str
     "Przy braku danych prosi o doprecyzowanie; sukces to raport przed 9:00 i brak wysłania wiadomości bez akceptacji.",
   ];
   for (const [index, answer] of answers.entries()) await questionFields.nth(index).fill(answer);
-  await page.getByRole("button", { name: "Wygeneruj kompletny prompt" }).click();
+  await page.getByRole("button", { name: "Sprawdź kontekst i wygeneruj prompt" }).click();
   await expect(page.getByRole("heading", { name: "Twój dopracowany prompt" })).toBeVisible();
   await expect(page.locator("pre")).toContainText("Specyfikacja agenta pracy biurowej");
 

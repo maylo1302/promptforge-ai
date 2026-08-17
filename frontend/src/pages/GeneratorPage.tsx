@@ -77,6 +77,7 @@ export function GeneratorPage() {
       const next = await api<Prompt>(`/prompts/${prompt.id}/answers`, { method: "POST", body: JSON.stringify({ answers }) });
       setPrompt(next);
       setAnswers(next.answers);
+      setNotice(next.status === "needs_clarification" ? "Dziękujemy. Na podstawie odpowiedzi dobraliśmy jeszcze brakujące pytania." : "Kontekst jest wystarczający — wygenerowaliśmy dopracowany prompt.");
       await queryClient.invalidateQueries({ queryKey: ["prompts"] });
       await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     } catch (reason) {
@@ -137,7 +138,7 @@ function StarterPanel() {
 }
 
 function Questions({ prompt, answers, setAnswers, onAnswer, disabled }: { prompt: Prompt; answers: Record<string, string>; setAnswers: (value: Record<string, string>) => void; onAnswer: () => Promise<void>; disabled: boolean }) {
-  return <Card><div className="flex size-11 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-500/15"><MessageCircleQuestion size={22} /></div><h2 className="mt-5 text-xl font-black">Zanim wygenerujemy prompt</h2><p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-slate-400">Szkic jest już zapisany. Te odpowiedzi pozwolą stworzyć konkretną instrukcję.</p><div className="mt-6 space-y-4">{prompt.questions.map((question, index) => { const fieldId = `generator-question-${index}`; return <label key={question} htmlFor={fieldId} className="block"><span className="label">{question}</span><textarea id={fieldId} value={answers[question] ?? ""} onChange={(event) => setAnswers({ ...answers, [question]: event.target.value })} className="input min-h-20 resize-y" placeholder="Wpisz konkretną odpowiedź…" /></label>; })}</div><Button onClick={() => void onAnswer()} disabled={disabled} className="mt-6 w-full"><Sparkles size={17} />Wygeneruj kompletny prompt</Button></Card>;
+  return <Card><div className="flex size-11 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-500/15"><MessageCircleQuestion size={22} /></div><h2 className="mt-5 text-xl font-black">Pytania dopasowane do Twojego zadania</h2><p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-slate-400">Pytamy wyłącznie o brakujący kontekst. Jeśli po tej rundzie nadal zabraknie ważnej informacji, pokażemy krótkie pytanie uzupełniające.</p><div className="mt-6 space-y-4">{prompt.questions.map((question, index) => { const fieldId = `generator-question-${index}`; return <label key={question} htmlFor={fieldId} className="block"><span className="label">{question}</span><textarea id={fieldId} value={answers[question] ?? ""} onChange={(event) => setAnswers({ ...answers, [question]: event.target.value })} className="input min-h-20 resize-y" placeholder="Wpisz konkretną odpowiedź…" /></label>; })}</div><Button onClick={() => void onAnswer()} disabled={disabled} className="mt-6 w-full"><Sparkles size={17} />Sprawdź kontekst i wygeneruj prompt</Button></Card>;
 }
 
 function Result({ prompt, editing, setEditing, onUpdate, onCopy, copied }: { prompt: Prompt; editing: boolean; setEditing: (value: boolean) => void; onUpdate: (changes: Partial<Prompt>) => Promise<void>; onCopy: () => Promise<void>; copied: boolean }) {

@@ -33,7 +33,7 @@ class PromptEngine:
         "przykład": ("np.", "przykład", "wzór", "referenc"),
         "sukces": ("kryter", "mierzal", "akceptac", "sukces", "kpi"),
     }
-    format_markers = ("format", "tabela", "lista", "markdown", "json", "pdf", "slajd", "raport")
+    format_markers = ("format", "tabel", "lista", "markdown", "json", "pdf", "slajd", "raport", "układ", "znacznik", "limit znak")
     audience_markers = ("dla ", "odbior", "klient", "użytkownik", "zespół", "początkują", "programist", "zarząd")
     category_roles = {
         "programming": "inżynierem oprogramowania",
@@ -67,6 +67,48 @@ class PromptEngine:
             "Opisz źródła danych, jakość danych, metryki i ograniczenia interpretacji.",
             "Oddziel obserwacje od wniosków i wskaż, czego dane nie potwierdzają.",
         ),
+        "copywriting": (
+            "Oprzyj komunikat na realnej ofercie, odbiorcy, dowodach i jednym wezwaniu do działania.",
+            "Dopasuj ton, długość i strukturę do wskazanego kanału publikacji.",
+        ),
+        "seo": (
+            "Uwzględnij intencję wyszukiwania, odbiorcę, temat strony i możliwe zapytania użytkowników.",
+            "Nie obiecuj pozycji w wynikach wyszukiwania; podaj mierzalne działania i sposób ich kontroli.",
+        ),
+        "law": (
+            "Wskaż jurysdykcję, datę obowiązywania informacji i dokumenty, na których opiera się analiza.",
+            "Oddziel informacje ogólne od porady prawnej i zaznacz kwestie wymagające konsultacji z prawnikiem.",
+        ),
+        "medicine": (
+            "Podaj odbiorcę, cel edukacyjny, źródła oraz granice bezpiecznej informacji medycznej.",
+            "Nie stawiaj diagnozy ani nie zastępuj konsultacji medycznej; wskaż objawy wymagające pilnej pomocy.",
+        ),
+        "translation": (
+            "Zachowaj znaczenie, nazwy własne, terminologię i format źródła.",
+            "Dopasuj rejestr języka do odbiorcy i oznacz fragmenty niejednoznaczne zamiast je zgadywać.",
+        ),
+        "education": (
+            "Dopasuj materiał do poziomu uczestników, celu uczenia i dostępnego czasu.",
+            "Zaproponuj ćwiczenie oraz mierzalny sposób sprawdzenia, czy cel został osiągnięty.",
+        ),
+        "science": (
+            "Rozdziel pytanie badawcze, metodę, dane, ograniczenia i poziom pewności wniosków.",
+            "Cytuj lub jasno wskaż źródła; nie przedstawiaj korelacji jako związku przyczynowego bez podstaw.",
+        ),
+    }
+    profile_requirements = {
+        "software_product": ("Rozdziel zakres MVP od funkcji późniejszych etapów oraz opisz użytkowników, dane, integracje i granice systemu.", "Dla kluczowych przepływów podaj kryteria akceptacji, uprawnienia i testy."),
+        "marketing_campaign": ("Zdefiniuj personę, ofertę, kanały, budżet, ograniczenia i mierniki kampanii.", "Przygotuj warianty do testu oraz sposób interpretacji wyników."),
+        "data_analysis": ("Opisz źródła danych, jakość danych, metryki i ograniczenia interpretacji.", "Oddziel obserwacje od wniosków i wskaż, czego dane nie potwierdzają."),
+        "business_decision": ("Porównaj opcje względem celu, danych, ryzyk i ograniczeń.", "Dla każdej rekomendacji podaj właściciela, termin oraz miernik sukcesu."),
+        "copywriting": ("Zbuduj przekaz na potwierdzonych korzyściach i dowodach, bez niezweryfikowanych obietnic.", "Zakończ jednym jasnym wezwaniem do działania dopasowanym do kanału."),
+        "seo": ("Dopasuj strukturę do intencji wyszukiwania i pytań odbiorcy.", "Podaj mierzalne działania SEO bez obietnic konkretnej pozycji w wyszukiwarce."),
+        "legal_analysis": ("Uwzględnij wskazaną jurysdykcję, stan faktyczny, dokumenty i datę analizy.", "Oddziel informację ogólną od porady prawnej i wskaż ryzyka wymagające konsultacji z prawnikiem."),
+        "medical_information": ("Przekazuj wyłącznie bezpieczną, edukacyjną informację zgodną z podanym kontekstem.", "Nie stawiaj diagnozy ani nie zastępuj lekarza; wskaż sygnały wymagające pilnej konsultacji."),
+        "translation": ("Zachowaj znaczenie, terminologię, nazwy własne i format źródła.", "Oznacz niejednoznaczności zamiast dopowiadać brakujący sens."),
+        "education": ("Dopasuj wyjaśnienie, przykład i ćwiczenie do poziomu uczestników oraz czasu.", "Dodaj sposób sprawdzenia osiągnięcia celu nauki."),
+        "science": ("Oddziel dane, metodę, obserwacje, wnioski i ograniczenia.", "Nie przedstawiaj korelacji jako przyczynowości bez podstaw w materiale źródłowym."),
+        "generic": ("Oprzyj odpowiedź wyłącznie na potwierdzonych informacjach i oznacz niezbędne założenia.", "Zamień cel na sprawdzalne działania, ograniczenia i kryteria sukcesu."),
     }
 
     office_agent_profile = TaskProfile(
@@ -117,18 +159,154 @@ class PromptEngine:
             ("format", "Rezultat: W jakiej formie ma być wynik — tabela, raport, wykresy czy rekomendacje z uzasadnieniem?"),
         ),
     )
+    business_profile = TaskProfile(
+        slug="business_decision",
+        label="decyzja biznesowa",
+        role="analitykiem biznesowym i doradcą decyzyjnym",
+        questions=(
+            ("decyzja", "Decyzja: Jaką konkretną decyzję ma wesprzeć rezultat i kto ją podejmie?"),
+            ("interesariusze", "Interesariusze: Kogo dotknie decyzja i jakie są ich najważniejsze potrzeby lub obawy?"),
+            ("dane", "Fakty i dane: Jakie dane, liczby, dokumenty lub obserwacje są dostępne?"),
+            ("ograniczenia", "Ograniczenia: Jaki jest termin, budżet, ryzyko lub element, którego nie wolno zmienić?"),
+            ("sukces", "Sukces: Po czym zmierzymy, że rekomendacja lub plan przyniósł oczekiwany rezultat?"),
+        ),
+    )
+    copywriting_profile = TaskProfile(
+        slug="copywriting",
+        label="tekst perswazyjny",
+        role="copywriterem i strategiem komunikacji",
+        questions=(
+            ("oferta", "Oferta: Co dokładnie promujesz, dla kogo i jaką konkretną korzyść oferujesz?"),
+            ("odbiorca", "Odbiorca: Kim jest czytelnik, z jakim problemem przychodzi i co może go powstrzymywać?"),
+            ("dowody", "Wiarygodność: Jakie fakty, liczby, opinie lub przykłady można bezpiecznie wykorzystać?"),
+            ("ton", "Ton i kanał: Gdzie tekst będzie opublikowany, jak ma brzmieć i jakiej długości potrzebujesz?"),
+            ("cta", "Działanie: Co odbiorca ma zrobić po przeczytaniu tekstu i skąd poznamy skuteczność?"),
+        ),
+    )
+    seo_profile = TaskProfile(
+        slug="seo",
+        label="treść SEO",
+        role="specjalistą SEO i strategiem treści",
+        questions=(
+            ("strona", "Strona i cel: Jakiej strony lub oferty dotyczy treść oraz jaki wynik biznesowy ma wspierać?"),
+            ("intencja", "Intencja: Z jakim pytaniem lub potrzebą użytkownik ma trafić na tę treść?"),
+            ("temat", "Temat i frazy: Jakie główne zagadnienie, frazy lub pytania odbiorców są istotne?"),
+            ("konkurencja", "Kontekst rynkowy: Jakie strony, marki lub materiały są punktem odniesienia i czym chcemy się wyróżnić?"),
+            ("metryki", "Pomiar: Jak zmierzymy efekt — ruch, widoczność, zapytania, sprzedaż lub inny wskaźnik?"),
+        ),
+    )
+    legal_profile = TaskProfile(
+        slug="legal_analysis",
+        label="analiza prawna",
+        role="specjalistą od analizy prawnej",
+        questions=(
+            ("sprawa", "Sprawa: Jaki jest stan faktyczny, pytanie prawne i oczekiwany rodzaj informacji?"),
+            ("jurysdykcja", "Prawo właściwe: Jakiego kraju lub systemu prawnego dotyczy sprawa i na jaki dzień ma być aktualna analiza?"),
+            ("dokumenty", "Materiały: Jakie umowy, pisma, przepisy lub fakty są dostępne i czego w nich szukamy?"),
+            ("ryzyko", "Ryzyko: Jaka decyzja zależy od odpowiedzi i jakie konsekwencje należy szczególnie ocenić?"),
+            ("format", "Rezultat: Czy potrzebujesz checklisty, analizy ryzyk, streszczenia dokumentu czy pytań do prawnika?"),
+        ),
+    )
+    medical_profile = TaskProfile(
+        slug="medical_information",
+        label="informacja medyczna",
+        role="specjalistą komunikacji medycznej opartej na dowodach",
+        questions=(
+            ("cel", "Cel: Czy potrzebujesz materiału edukacyjnego, wyjaśnienia wyniku, przygotowania do wizyty czy czegoś innego?"),
+            ("odbiorca", "Odbiorca: Dla kogo powstaje informacja i jaki ma poziom wiedzy medycznej?"),
+            ("kontekst", "Kontekst: Jakie objawy, wynik, rozpoznanie lub sytuacja są istotne — bez danych identyfikujących pacjenta?"),
+            ("zrodla", "Źródła i zakres: Czy są wytyczne, materiały lub ograniczenia, których należy się trzymać?"),
+            ("bezpieczenstwo", "Bezpieczeństwo: Jakie ryzyka, przeciwwskazania lub sygnały alarmowe należy wyraźnie uwzględnić?"),
+        ),
+    )
+    translation_profile = TaskProfile(
+        slug="translation",
+        label="tłumaczenie",
+        role="tłumaczem i redaktorem",
+        questions=(
+            ("jezyki", "Języki: Z jakiego języka na jaki język ma być tłumaczenie?"),
+            ("odbiorca", "Odbiorca: Kto przeczyta tekst i w jakiej sytuacji będzie go używać?"),
+            ("ton", "Rejestr: Jaki ma być ton — formalny, prawny, marketingowy, techniczny czy swobodny?"),
+            ("terminologia", "Terminologia: Jakie nazwy własne, glosariusz lub zwroty muszą pozostać niezmienione?"),
+            ("format", "Format: Czy trzeba zachować układ, znaczniki, tabelę, limity znaków lub inny format źródła?"),
+        ),
+    )
+    education_profile = TaskProfile(
+        slug="education",
+        label="materiał edukacyjny",
+        role="projektantem materiałów edukacyjnych",
+        questions=(
+            ("uczestnicy", "Uczestnicy: Dla kogo powstaje materiał, jaki ma poziom wyjściowy i czego już nie trzeba tłumaczyć?"),
+            ("cel", "Cel nauki: Co uczestnik ma umieć wykonać lub wyjaśnić po zakończeniu materiału?"),
+            ("zakres", "Zakres: Jakie treści, źródła lub przykłady muszą się znaleźć, a czego nie obejmujemy?"),
+            ("czas", "Forma i czas: Ile czasu jest dostępne oraz czy ma to być lekcja, ćwiczenie, prezentacja czy test?"),
+            ("ocena", "Sprawdzenie efektu: Jak zweryfikujemy, że uczestnik osiągnął cel?"),
+        ),
+    )
+    science_profile = TaskProfile(
+        slug="science",
+        label="analiza naukowa",
+        role="analitykiem naukowym",
+        questions=(
+            ("pytanie", "Pytanie badawcze: Co dokładnie chcemy wyjaśnić, porównać lub sprawdzić?"),
+            ("material", "Materiał i dane: Jakie źródła, publikacje, dane lub obserwacje można wykorzystać?"),
+            ("metoda", "Metoda: Jaką metodę analizy, kryteria doboru źródeł lub sposób porównania preferujesz?"),
+            ("ograniczenia", "Ograniczenia: Jakie założenia, ryzyka błędu lub granice wnioskowania należy uwzględnić?"),
+            ("format", "Rezultat: Czy potrzebujesz przeglądu literatury, hipotez, planu badania, analizy czy streszczenia?"),
+        ),
+    )
+    generic_profile = TaskProfile(
+        slug="generic",
+        label="opisane zadanie",
+        role="specjalistą dopasowanym do opisanego zadania",
+        questions=(
+            ("rezultat", "Rezultat i użycie: Co konkretnie ma powstać, kto go użyje i do jakiej decyzji lub działania?"),
+            ("odbiorca", "Odbiorca: Dla kogo tworzysz rezultat i jaki ma poziom wiedzy lub potrzeby?"),
+            ("kontekst", "Kontekst i dane: Jakie fakty, materiały, przykłady lub dane wejściowe są dostępne?"),
+            ("ograniczenia", "Ograniczenia: Jaki jest termin, budżet, zakres, ryzyko lub rzecz, której nie wolno robić?"),
+            ("format", "Format i sukces: Jak ma wyglądać rezultat oraz po czym sprawdzisz, że jest dobry?"),
+        ),
+    )
 
     def classify_task(self, brief: str, category: str) -> TaskProfile | None:
         text = brief.lower()
         if (("biurow" in text or "administracyj" in text) and ("agent" in text or "asystent" in text)) or any(phrase in text for phrase in ("osobisty asystent", "agent do e-mail", "agent do mail")):
             return self.office_agent_profile
-        if any(word in text for word in ("kampani", "reklam", "lead", "newsletter", "social media")) or category == "marketing":
+        if any(word in text for word in ("jurysdykc", "przepis", "umow", "pozew", "kodeks", "prawny")):
+            return self.legal_profile
+        if any(word in text for word in ("objaw", "pacjent", "diagnoz", "leczen", "zdrow", "medycz")):
+            return self.medical_profile
+        if any(word in text for word in ("tłumacz", "przetłumacz", "translation", "język docelowy", "source language")):
+            return self.translation_profile
+        if any(word in text for word in ("lekcj", "kurs", "uczni", "student", "szkoleni", "materiał edukacyj")):
+            return self.education_profile
+        if any(word in text for word in ("seo", "pozycjon", "słowo klucz", "fraza klucz", "intencja wyszukiwania")):
+            return self.seo_profile
+        if any(word in text for word in ("copy", "tekst sprzedaż", "landing page", "hasło reklam", "opis produktu")):
+            return self.copywriting_profile
+        if any(word in text for word in ("badani", "hipotez", "literatur", "publikacj naukow", "eksperyment")):
+            return self.science_profile
+        if any(word in text for word in ("kampani", "reklam", "lead", "newsletter", "social media")):
             return self.marketing_profile
-        if any(word in text for word in ("analiz", "dashboard", "raport danych", "zbiór danych")) or category == "data_analysis":
+        if any(word in text for word in ("analiz", "dashboard", "raport danych", "zbiór danych")):
             return self.data_profile
-        if category == "programming" or any(word in text for word in ("aplikac", "strona internet", "system", "api", "oprogramowanie")):
+        if any(word in text for word in ("decyzj", "strategi", "wdrożeni", "proces biznes", "rentowno", "operacyj")):
+            return self.business_profile
+        if any(word in text for word in ("aplikac", "strona internet", "system", "api", "oprogramowanie")):
             return self.software_profile
-        return None
+        return {
+            "programming": self.software_profile,
+            "marketing": self.marketing_profile,
+            "business": self.business_profile,
+            "copywriting": self.copywriting_profile,
+            "seo": self.seo_profile,
+            "science": self.science_profile,
+            "law": self.legal_profile,
+            "medicine": self.medical_profile,
+            "data_analysis": self.data_profile,
+            "translation": self.translation_profile,
+            "education": self.education_profile,
+        }.get(category, self.generic_profile)
 
     def profile_topic_evidence(self, topic: str, text: str) -> bool:
         markers = {
@@ -151,28 +329,60 @@ class PromptEngine:
             "zrodla": ("źródł", "dane", "plik", "baza", "okres"),
             "odbiorca": ("odbior", "zarząd", "zespół", "klient"),
             "format": self.format_markers,
+            "decyzja": ("decyz", "wybra", "zatwierdz", "wdroż"),
+            "interesariusze": ("interesarius", "zespół", "klient", "zarząd", "pracownik"),
+            "ograniczenia": self.evidence_groups["ograniczenia"] + self.evidence_groups["termin"],
+            "sukces": self.evidence_groups["sukces"],
+            "dowody": ("badani", "opini", "liczb", "dowod", "przykład", "referenc"),
+            "ton": ("formal", "swobod", "profesjonal", "technicz", "ton", "styl", "linkedin", "instagram"),
+            "cta": ("kup", "zapis", "kontakt", "zamów", "wezwanie", "konwers"),
+            "strona": ("strona", "serwis", "landing", "oferta", "produkt"),
+            "intencja": ("intencj", "szuka", "pytanie", "problem", "potrzeb"),
+            "temat": ("temat", "fraza", "słowo klucz", "keyword", "zagadnien"),
+            "konkurencja": ("konkur", "alternatyw", "wyróż", "porówn"),
+            "sprawa": ("spraw", "stan faktycz", "pytanie prawne", "sytuacj"),
+            "jurysdykcja": ("polsk", "ue", "jurysdykc", "kraj", "prawo"),
+            "dokumenty": ("umow", "dokument", "pismo", "przepis", "regulamin"),
+            "ryzyko": ("ryzyk", "konsekwenc", "odpowiedzial", "spór", "kara"),
+            "cel": ("cel", "edukac", "wyjaśn", "przygot", "informacj"),
+            "kontekst": ("objaw", "wynik", "sytuacj", "rozpozn", "kontekst"),
+            "bezpieczenstwo": ("bezpiecze", "alarm", "piln", "przeciwwskaz", "ryzyk"),
+            "jezyki": ("polsk", "angiel", "niemiec", "hiszpań", "francus", "język"),
+            "terminologia": ("termin", "glosarius", "nazwa własna", "marka"),
+            "uczestnicy": ("uczni", "student", "dzieci", "uczestni", "poziom", "klasa"),
+            "zakres": ("zakres", "temat", "źródł", "materiał", "obejm"),
+            "czas": ("minut", "godzin", "lekcj", "czas", "warsztat"),
+            "ocena": ("test", "quiz", "ocen", "sprawdz", "ćwiczen"),
+            "material": ("dane", "źródł", "publikac", "artykuł", "obserwac"),
+            "metoda": ("metod", "porówn", "analiz", "eksperyment", "dobór"),
+            "rezultat": ("rezultat", "wynik", "stwórz", "przygotuj", "napisz", "zaprojektuj"),
         }
         return any(marker in text.lower() for marker in markers.get(topic, ()))
 
-    def clarification_questions(self, brief: str, category: str) -> list[str]:
-        profile = self.classify_task(brief, category)
-        if profile:
-            if profile.slug == "office_agent":
-                return [question for _, question in profile.questions]
-            missing = [question for topic, question in profile.questions if not self.profile_topic_evidence(topic, brief)]
-            return missing[:5]
+    def topic_answer(self, profile: TaskProfile, topic: str, answers: dict[str, str]) -> str:
+        for question_topic, question in profile.questions:
+            if question_topic == topic:
+                return answers.get(question, "").strip()
+        return ""
 
-        words = findall(r"\w+", brief.lower())
-        questions: list[str] = []
-        if len(words) < 12 or len(set(words) & self.vague_terms) > 0:
-            questions.append("Jaki konkretny rezultat ma powstać i jak będzie wykorzystywany?")
-        if not any(term in brief.lower() for term in self.audience_markers):
-            questions.append("Kim jest odbiorca rezultatu i jaki ma poziom wiedzy?")
-        if not any(term in brief.lower() for term in self.format_markers):
-            questions.append("W jakim formacie powinna być przedstawiona odpowiedź?")
-        if category in {"programming", "business", "law", "medicine"}:
-            questions.append("Jakie ograniczenia, dane wejściowe lub kryteria akceptacji są najważniejsze?")
-        return questions[:4]
+    def topic_is_covered(self, profile: TaskProfile, topic: str, brief: str, answers: dict[str, str]) -> bool:
+        answer = self.topic_answer(profile, topic, answers)
+        if answer:
+            detail = self.answer_detail(answer)
+            return detail >= 0.28 or (detail >= 0.14 and self.profile_topic_evidence(topic, answer))
+        # Pojedyncze słowo (np. „codziennie”) nie jest jeszcze specyfikacją rutyny.
+        # Uznajemy temat za opisany w samym briefie dopiero, gdy opis ma wyraźny kontekst.
+        return len(self.meaningful_words(brief)) >= 15 and self.profile_topic_evidence(topic, brief)
+
+    def clarification_questions(self, brief: str, category: str, answers: dict[str, str] | None = None) -> list[str]:
+        profile = self.classify_task(brief, category)
+        current_answers = answers or {}
+        missing = [question for topic, question in profile.questions if not self.topic_is_covered(profile, topic, brief, current_answers)]
+        # Bardzo krótki lub ogólnikowy brief potrzebuje pełnego wywiadu w danej dziedzinie,
+        # nawet jeśli przypadkowe słowo pasuje do jednego z tematów.
+        if not current_answers and (len(self.meaningful_words(brief)) < 6 or self.generic_hits(brief)):
+            return [question for _, question in profile.questions]
+        return missing[:5]
 
     def meaningful_words(self, text: str) -> list[str]:
         return [word for word in findall(r"\w+", text.lower()) if len(word) > 2 and word not in self.stop_words]
@@ -376,10 +586,10 @@ Jesteś {profile.role}. Zaprojektuj osobistego agenta do codziennej pracy biurow
 - Stawiaj na konkretne reguły i testowalne zachowania, nie na ogólne deklaracje typu „ma działać”.
 """
 
-    def build_general_prompt(self, prompt: Prompt, model_label: str, level_label: str) -> str:
+    def build_general_prompt(self, prompt: Prompt, model_label: str, level_label: str, profile: TaskProfile | None) -> str:
         context = "\n".join(f"- {question}: {answer}" for question, answer in (prompt.answers or {}).items()) or "- Brak dodatkowych odpowiedzi."
-        role = self.category_roles.get(prompt.category, self.category_roles["other"])
-        requirements = self.category_requirements.get(prompt.category, ("Zamień cel na konkretne kroki, dane wejściowe, ograniczenia i kryteria akceptacji.",))
+        role = profile.role if profile else self.category_roles.get(prompt.category, self.category_roles["other"])
+        requirements = self.profile_requirements.get(profile.slug, self.category_requirements.get(prompt.category, ("Zamień cel na konkretne kroki, dane wejściowe, ograniczenia i kryteria akceptacji."))) if profile else self.category_requirements.get(prompt.category, ("Zamień cel na konkretne kroki, dane wejściowe, ograniczenia i kryteria akceptacji."))
         domain_requirements = "\n".join(f"- {item}" for item in requirements)
         return f"""# Prompt dla {model_label}
 
@@ -410,7 +620,7 @@ Jesteś {role}. Pracujesz na poziomie {level_label}.
         model_label = {"chatgpt": "ChatGPT", "claude": "Claude", "both": "ChatGPT lub Claude"}[prompt.model_target]
         level_label = {"standard": "standardowym", "professional": "profesjonalnym", "expert": "eksperckim"}[prompt.level]
         profile = self.classify_task(prompt.brief, prompt.category)
-        content = self.build_office_agent_prompt(prompt, profile, model_label) if profile and profile.slug == "office_agent" else self.build_general_prompt(prompt, model_label, level_label)
+        content = self.build_office_agent_prompt(prompt, profile, model_label) if profile and profile.slug == "office_agent" else self.build_general_prompt(prompt, model_label, level_label, profile)
         content = enhance_prompt(content, prompt.model_target)
         score, analysis = self.quality_assessment(prompt)
         return GenerationResult(content=content, score=score, analysis=analysis)

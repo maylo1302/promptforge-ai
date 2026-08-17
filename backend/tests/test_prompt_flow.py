@@ -90,6 +90,30 @@ def test_placeholder_answers_are_rejected_before_prompt_generation() -> None:
         assert client.get(f"/api/v1/prompts/{draft['id']}", headers=headers).json()["status"] == "needs_clarification"
 
 
+def test_adaptive_follow_up_keeps_only_the_missing_question() -> None:
+    email = f"adaptive-{uuid4()}@example.com"
+    with TestClient(app) as client:
+        assert client.post("/api/v1/auth/register", json={"email": email, "password": "bardzo-bezpieczne-haslo-123", "first_name": "Jan", "last_name": "Testowy"}).status_code == 201
+        login = client.post("/api/v1/auth/login", json={"email": email, "password": "bardzo-bezpieczne-haslo-123"})
+        headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+        draft = client.post("/api/v1/prompts", json={"brief": "Przetłumacz instrukcję obsługi produktu dla klientów biznesowych.", "model_target": "chatgpt", "level": "professional", "category": "translation"}, headers=headers).json()
+        first_round = {
+            next(question for question in draft["questions"] if question.startswith("Języki")): "Z polskiego na angielski.",
+            next(question for question in draft["questions"] if question.startswith("Odbiorca")): "Dla administratorów IT w firmach korzystających z urządzenia.",
+            next(question for question in draft["questions"] if question.startswith("Rejestr")): "Formalny i techniczny, zgodny z instrukcją producenta.",
+            next(question for question in draft["questions"] if question.startswith("Terminologia")): "Nazwy marki, modele urządzeń i terminy z glosariusza producenta pozostają bez zmian.",
+        }
+        follow_up = client.post(f"/api/v1/prompts/{draft['id']}/answers", json={"answers": first_round}, headers=headers)
+        assert follow_up.status_code == 200
+        assert follow_up.json()["status"] == "needs_clarification"
+        assert len(follow_up.json()["questions"]) == 1
+        assert follow_up.json()["questions"][0].startswith("Format")
+
+        completed = client.post(f"/api/v1/prompts/{draft['id']}/answers", json={"answers": {follow_up.json()["questions"][0]: "Zachowaj tabelę, listy, nagłówki i limity znaków z dokumentu źródłowego."}}, headers=headers)
+        assert completed.status_code == 200
+        assert completed.json()["status"] == "generated"
+
+
 def test_office_agent_flow_generates_domain_specific_prompt() -> None:
     email = f"office-agent-{uuid4()}@example.com"
     with TestClient(app) as client:

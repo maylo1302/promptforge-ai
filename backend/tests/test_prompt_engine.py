@@ -7,6 +7,34 @@ def test_brief_without_context_requires_clarification() -> None:
     assert len(questions) >= 2
 
 
+def test_questions_match_detected_domain_and_skip_already_described_context() -> None:
+    legal = prompt_engine.classify_task("Przygotuj analizę umowy najmu dla firmy w Polsce.", "other")
+    assert legal is not None
+    assert legal.slug == "legal_analysis"
+    assert any(question.startswith("Prawo właściwe") for question in prompt_engine.clarification_questions("Przygotuj analizę umowy najmu dla firmy w Polsce.", "other"))
+
+    complete_translation = (
+        "Przetłumacz opis produktu z polskiego na angielski dla klientów B2B w Wielkiej Brytanii. "
+        "Tekst ma mieć formalny, techniczny ton, zachować nazwy własne i glosariusz marki, "
+        "tabelę oraz limity znaków z pliku źródłowego. Rezultat wykorzysta dział sprzedaży w katalogu online."
+    )
+    assert prompt_engine.classify_task(complete_translation, "other").slug == "translation"
+    assert prompt_engine.clarification_questions(complete_translation, "other") == []
+
+
+def test_follow_up_questions_only_cover_the_remaining_gap() -> None:
+    brief = "Przetłumacz instrukcję obsługi produktu dla klientów biznesowych."
+    questions = prompt_engine.clarification_questions(brief, "translation")
+    answers = {
+        next(question for question in questions if question.startswith("Języki")): "Z polskiego na angielski.",
+        next(question for question in questions if question.startswith("Odbiorca")): "Dla administratorów IT w firmach korzystających z urządzenia.",
+        next(question for question in questions if question.startswith("Rejestr")): "Formalny i techniczny, zgodny z instrukcją producenta.",
+        next(question for question in questions if question.startswith("Terminologia")): "Nazwy marki, modele urządzeń i terminy z glosariusza producenta pozostają bez zmian.",
+    }
+    follow_up = prompt_engine.clarification_questions(brief, "translation", answers)
+    assert follow_up == [next(question for question in questions if question.startswith("Format"))]
+
+
 def test_generator_creates_structured_prompt() -> None:
     prompt = Prompt(brief="Stwórz plan wdrożenia aplikacji do zarządzania magazynem dla zespołu operacyjnego.", model_target="chatgpt", level="professional", category="business", answers={"Jaki format?": "Tabela etapów z ryzykami"})
     result = prompt_engine.generate(prompt)

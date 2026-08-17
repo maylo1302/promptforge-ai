@@ -48,9 +48,9 @@ def answer_questions(prompt_id: str, payload: PromptAnswersRequest, db: DbSessio
     if placeholders:
         raise HTTPException(status_code=422, detail="Jedna z odpowiedzi jest zbyt ogólna. Zamiast „ma działać” podaj konkretne narzędzie, regułę, ograniczenie albo kryterium sukcesu.")
     prompt.answers = {**prompt.answers, **accepted}
-    unanswered = [question for question in prompt.questions if question not in prompt.answers]
-    if unanswered:
-        prompt.questions = unanswered
+    next_questions = prompt_engine.clarification_questions(prompt.brief, prompt.category, prompt.answers)
+    if next_questions:
+        prompt.questions = next_questions
     else:
         result = prompt_engine.generate(prompt)
         prompt.content, prompt.quality_score, prompt.analysis, prompt.status = result.content, result.score, result.analysis, "generated"

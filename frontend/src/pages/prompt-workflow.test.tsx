@@ -50,7 +50,7 @@ describe("workflow promptów", () => {
 
     await waitFor(() => expect(api).toHaveBeenCalledWith("/prompts", expect.objectContaining({ method: "POST" })));
     expect(await screen.findByText(/Szkic został zapisany w historii/)).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Zanim wygenerujemy prompt" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Pytania dopasowane do Twojego zadania" })).toBeInTheDocument();
   });
 
   it("otwiera pełny prompt i kopiuje jego treść", async () => {

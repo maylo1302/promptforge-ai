@@ -37,6 +37,21 @@ def test_translation_request_is_not_mistaken_for_legal_analysis_due_to_a_regulat
     assert questions[0].startswith("Terminologia")
 
 
+def test_translation_takes_priority_over_a_legal_document_or_legal_style() -> None:
+    brief = (
+        "Przetłumacz regulamin sklepu internetowego z polskiego na angielski brytyjski. "
+        "Odbiorcami są klienci w Wielkiej Brytanii. Zachowaj formalny, prawny styl oraz strukturę nagłówków. "
+        "Wynik zwróć w Markdown."
+    )
+
+    profile = prompt_engine.classify_task(brief, "other")
+    assert profile is not None
+    assert profile.slug == "translation"
+    questions = prompt_engine.clarification_questions(brief, "other")
+    assert len(questions) == 1
+    assert questions[0].startswith("Terminologia")
+
+
 def test_follow_up_questions_only_cover_the_remaining_gap() -> None:
     brief = "Przetłumacz instrukcję obsługi produktu dla klientów biznesowych."
     questions = prompt_engine.clarification_questions(brief, "translation")

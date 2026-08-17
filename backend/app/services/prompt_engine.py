@@ -270,14 +270,16 @@ class PromptEngine:
 
     def classify_task(self, brief: str, category: str) -> TaskProfile | None:
         text = brief.lower()
+        # Czasownik zadania ma pierwszeństwo przed dziedziną materiału. Przykładowo
+        # „przetłumacz prawny regulamin” jest zadaniem tłumaczeniowym, nie analizą prawną.
+        if any(word in text for word in ("tłumacz", "przetłumacz", "translation", "język docelowy", "source language")):
+            return self.translation_profile
         if (("biurow" in text or "administracyj" in text) and ("agent" in text or "asystent" in text)) or any(phrase in text for phrase in ("osobisty asystent", "agent do e-mail", "agent do mail")):
             return self.office_agent_profile
         if any(word in text for word in ("jurysdykc", "przepis", "umow", "pozew", "kodeks", "prawny")):
             return self.legal_profile
         if any(word in text for word in ("objaw", "pacjent", "diagnoz", "leczen", "zdrow", "medycz")):
             return self.medical_profile
-        if any(word in text for word in ("tłumacz", "przetłumacz", "translation", "język docelowy", "source language")):
-            return self.translation_profile
         if any(word in text for word in ("lekcj", "kurs", "uczni", "student", "szkoleni", "materiał edukacyj")):
             return self.education_profile
         if any(word in text for word in ("seo", "pozycjon", "słowo klucz", "fraza klucz", "intencja wyszukiwania")):

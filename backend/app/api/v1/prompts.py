@@ -44,6 +44,9 @@ def answer_questions(prompt_id: str, payload: PromptAnswersRequest, db: DbSessio
     accepted = {question: answer.strip() for question, answer in payload.answers.items() if question in allowed and answer.strip()}
     if not accepted:
         raise HTTPException(status_code=422, detail="Podaj odpowiedź na co najmniej jedno pytanie doprecyzowujące.")
+    placeholders = prompt_engine.placeholder_answer_questions(accepted)
+    if placeholders:
+        raise HTTPException(status_code=422, detail="Jedna z odpowiedzi jest zbyt ogólna. Zamiast „ma działać” podaj konkretne narzędzie, regułę, ograniczenie albo kryterium sukcesu.")
     prompt.answers = {**prompt.answers, **accepted}
     unanswered = [question for question in prompt.questions if question not in prompt.answers]
     if unanswered:

@@ -59,3 +59,44 @@ def test_draft_can_be_resumed_edited_and_deleted_after_reload() -> None:
         assert final_session.delete(f"/api/v1/prompts/{prompt_id}", headers=headers).status_code == 204
         assert final_session.get(f"/api/v1/prompts/{prompt_id}", headers=headers).status_code == 404
         assert final_session.get("/api/v1/prompts", headers=headers).json()["total"] == 0
+
+
+def test_placeholder_answers_are_rejected_before_prompt_generation() -> None:
+    email = f"placeholder-{uuid4()}@example.com"
+    with TestClient(app) as client:
+        assert client.post("/api/v1/auth/register", json={"email": email, "password": "bardzo-bezpieczne-haslo-123", "first_name": "Jan", "last_name": "Testowy"}).status_code == 201
+        login = client.post("/api/v1/auth/login", json={"email": email, "password": "bardzo-bezpieczne-haslo-123"})
+        headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+        draft = client.post("/api/v1/prompts", json={"brief": "Chcę zbudować osobistego agenta biurowego.", "model_target": "chatgpt", "level": "professional", "category": "programming"}, headers=headers).json()
+
+        response = client.post(f"/api/v1/prompts/{draft['id']}/answers", json={"answers": {question: "ma działać" for question in draft["questions"]}}, headers=headers)
+        assert response.status_code == 422
+        assert "zbyt ogólna" in response.json()["detail"]
+        assert client.get(f"/api/v1/prompts/{draft['id']}", headers=headers).json()["status"] == "needs_clarification"
+
+
+def test_office_agent_flow_generates_domain_specific_prompt() -> None:
+    email = f"office-agent-{uuid4()}@example.com"
+    with TestClient(app) as client:
+        assert client.post("/api/v1/auth/register", json={"email": email, "password": "bardzo-bezpieczne-haslo-123", "first_name": "Jan", "last_name": "Testowy"}).status_code == 201
+        login = client.post("/api/v1/auth/login", json={"email": email, "password": "bardzo-bezpieczne-haslo-123"})
+        headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+        draft = client.post("/api/v1/prompts", json={"brief": "Chcę zbudować osobistego agenta biurowego do organizacji codziennej pracy.", "model_target": "chatgpt", "level": "professional", "category": "programming"}, headers=headers).json()
+        assert draft["status"] == "needs_clarification"
+        assert len(draft["questions"]) == 5
+        answers = {
+            question: answer for question, answer in zip(draft["questions"], [
+                "Gmail, Google Calendar, Google Drive i lista zadań; dostęp wyłącznie do kontaktów służbowych, kalendarza i dokumentów projektowych.",
+                "Każdego ranka podsumowuje spotkania i priorytety, a w piątek przygotowuje tygodniowe podsumowanie zadań.",
+                "Tworzy szkice odpowiedzi automatycznie, ale wysłanie e-maila, spotkania lub zmianę dokumentu wykonuje wyłącznie po zatwierdzeniu.",
+                "Przechowuje preferencje i nazwy projektów przez 30 dni; nie zapisuje haseł ani danych zdrowotnych.",
+                "Przy braku danych prosi o doprecyzowanie, przy błędzie pokazuje powiadomienie i nie wykonuje akcji; sukces to brak pominiętych spotkań i 80% zadań w terminie.",
+            ])
+        }
+        response = client.post(f"/api/v1/prompts/{draft['id']}/answers", json={"answers": answers}, headers=headers)
+        assert response.status_code == 200
+        generated = response.json()
+        assert generated["status"] == "generated"
+        assert generated["quality_score"] >= 80
+        assert "Codzienne przepływy pracy" in generated["content"]
+        assert "Mierzalne testy akceptacyjne" in generated["content"]

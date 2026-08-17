@@ -10,8 +10,8 @@ def test_brief_without_context_requires_clarification() -> None:
 def test_generator_creates_structured_prompt() -> None:
     prompt = Prompt(brief="Stwórz plan wdrożenia aplikacji do zarządzania magazynem dla zespołu operacyjnego.", model_target="chatgpt", level="professional", category="business", answers={"Jaki format?": "Tabela etapów z ryzykami"})
     result = prompt_engine.generate(prompt)
-    assert "## Rola" in result.content
-    assert "## Kryteria sukcesu i checklista" in result.content
+    assert "## Rola i cel" in result.content
+    assert "## Wymagania właściwe dla tego typu zadania" in result.content
     assert 0 <= result.score <= 100
     assert "Kara za ogólniki" in result.analysis["quality_breakdown"]
 
@@ -57,3 +57,49 @@ def test_specific_answers_score_higher_than_generic_ones() -> None:
     assert specific_result.score >= 75
     assert specific_result.score >= generic_result.score + 45
     assert specific_result.analysis["quality_breakdown"]["Kara za ogólniki"] == 0
+
+
+def test_office_agent_uses_five_domain_questions_and_specialized_prompt() -> None:
+    brief = "Chcę zbudować osobistego agenta biurowego do organizacji codziennej pracy."
+    profile = prompt_engine.classify_task(brief, "programming")
+    assert profile is not None
+    assert profile.slug == "office_agent"
+    questions = prompt_engine.clarification_questions(brief, "programming")
+    assert len(questions) == 5
+    assert any(question.startswith("Narzędzia i dane") for question in questions)
+    assert any(question.startswith("Autonomia") for question in questions)
+
+    answers = {
+        questions[0]: "Agent korzysta z Gmaila, Google Calendar, Google Drive i listy zadań. Ma dostęp tylko do mojego kalendarza, dokumentów projektowych i kontaktów służbowych.",
+        questions[1]: "Codziennie rano podsumowuje kalendarz, priorytety i nieodczytane e-maile. W piątek przygotowuje tygodniowe podsumowanie zadań.",
+        questions[2]: "Może sam tworzyć szkice odpowiedzi i listy zadań. Wysłanie e-maila, utworzenie spotkania i zmiana dokumentu zawsze wymagają mojego zatwierdzenia.",
+        questions[3]: "Zapamiętuje nazwy projektów i ustalone preferencje przez 30 dni. Nie zapisuje haseł, danych zdrowotnych ani prywatnej treści e-maili.",
+        questions[4]: "Przy braku danych prosi o doprecyzowanie, a przy błędzie pokazuje powiadomienie i nie wykonuje działania. Sukces mierzę brakiem pominiętych spotkań i 80% zadań zrealizowanych w terminie.",
+    }
+    prompt = Prompt(brief=brief, model_target="chatgpt", level="professional", category="programming", questions=list(questions), answers=answers)
+    result = prompt_engine.generate(prompt)
+
+    assert result.score >= 80
+    assert "Codzienne przepływy pracy" in result.content
+    assert "Integracje oraz model uprawnień" in result.content
+    assert "Mierzalne testy akceptacyjne" in result.content
+    assert "Gmail" in result.content
+    assert "ma działać" in result.content
+
+
+def test_office_agent_with_shallow_context_cannot_receive_high_score() -> None:
+    brief = "Chcę zbudować osobistego agenta biurowego."
+    questions = prompt_engine.clarification_questions(brief, "programming")
+    prompt = Prompt(
+        brief=brief,
+        model_target="chatgpt",
+        level="professional",
+        category="programming",
+        questions=list(questions),
+        answers={question: "Odbiorcą jestem ja." for question in questions},
+    )
+    result = prompt_engine.generate(prompt)
+
+    assert result.score < 55
+    assert result.analysis["quality_breakdown"]["Zakres autonomii"] == 0
+    assert result.analysis["missing_information"]

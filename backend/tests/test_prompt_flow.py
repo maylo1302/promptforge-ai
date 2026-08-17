@@ -18,7 +18,13 @@ def test_user_can_complete_prompt_flow_and_export_markdown() -> None:
         draft = created.json()
         assert draft["status"] == "needs_clarification"
 
-        answers = {question: "Praktyczna odpowiedź dla początkujących w formie listy." for question in draft["questions"]}
+        answers = {
+            next(question for question in draft["questions"] if question.startswith("Rezultat i użycie")): "Rezultatem będzie plan praktycznej książki o organizacji domowego budżetu dla osób zaczynających samodzielne życie.",
+            next(question for question in draft["questions"] if question.startswith("Odbiorca")): "Dla początkujących dorosłych, którzy nie znają podstaw budżetowania i potrzebują prostych przykładów.",
+            next(question for question in draft["questions"] if question.startswith("Kontekst i dane")): "Dostępne są przykłady miesięcznych wydatków, listy kategorii kosztów i materiał o oszczędzaniu.",
+            next(question for question in draft["questions"] if question.startswith("Ograniczenia")): "Książka ma mieć maksymalnie 120 stron i zostać przygotowana do końca września bez specjalistycznego żargonu.",
+            next(question for question in draft["questions"] if question.startswith("Format i sukces")): "Format to plan 10 rozdziałów z checklistami; sukcesem będzie samodzielne ułożenie budżetu przez czytelnika.",
+        }
         completed = client.post(f"/api/v1/prompts/{draft['id']}/answers", json={"answers": answers}, headers=headers)
         assert completed.status_code == 200
         assert completed.json()["quality_score"] >= 20
@@ -60,7 +66,13 @@ def test_draft_can_be_resumed_edited_and_deleted_after_reload() -> None:
         restored = reloaded_session.get(f"/api/v1/prompts/{prompt_id}", headers=headers)
         assert restored.status_code == 200
         assert restored.json()["status"] == "needs_clarification"
-        answers = {question: "Dla zespołu operacyjnego, w tabeli etapów z terminami, budżetem i kryteriami akceptacji." for question in restored.json()["questions"]}
+        answers = {
+            next(question for question in restored.json()["questions"] if question.startswith("Użytkownicy")): "Kierownik magazynu i pracownicy zmianowi mają w pierwszej wersji rejestrować przyjęcia oraz wydania towaru.",
+            next(question for question in restored.json()["questions"] if question.startswith("Zakres MVP")): "MVP obejmuje logowanie, listę stanów magazynowych, przyjęcia, wydania i alerty niskiego stanu; raporty finansowe odkładamy na później.",
+            next(question for question in restored.json()["questions"] if question.startswith("Dane i integracje")): "System przetwarza katalog produktów, stany, dostawców i historię ruchów; integruje się z czytnikiem kodów kreskowych przez API.",
+            next(question for question in restored.json()["questions"] if question.startswith("Bezpieczeństwo")): "Tylko kierownik ma dostęp do edycji katalogu produktów, a pracownicy mogą rejestrować ruchy; każda zmiana wymaga uwierzytelnienia i jest zapisana w historii.",
+            next(question for question in restored.json()["questions"] if question.startswith("Akceptacja")): "Test akceptacyjny zalicza się, gdy pracownik zapisze przyjęcie, stan zwiększy się poprawnie, a kierownik widzi zmianę w historii.",
+        }
         generated = reloaded_session.post(f"/api/v1/prompts/{prompt_id}/answers", json={"answers": answers}, headers=headers)
         assert generated.status_code == 200
         assert generated.json()["status"] == "generated"
@@ -85,6 +97,20 @@ def test_placeholder_answers_are_rejected_before_prompt_generation() -> None:
         draft = client.post("/api/v1/prompts", json={"brief": "Chcę zbudować osobistego agenta biurowego.", "model_target": "chatgpt", "level": "professional", "category": "programming"}, headers=headers).json()
 
         response = client.post(f"/api/v1/prompts/{draft['id']}/answers", json={"answers": {question: "ma działać" for question in draft["questions"]}}, headers=headers)
+        assert response.status_code == 422
+        assert "zbyt ogólna" in response.json()["detail"]
+        assert client.get(f"/api/v1/prompts/{draft['id']}", headers=headers).json()["status"] == "needs_clarification"
+
+
+def test_personal_audience_placeholder_is_rejected_before_prompt_generation() -> None:
+    email = f"personal-placeholder-{uuid4()}@example.com"
+    with TestClient(app) as client:
+        assert client.post("/api/v1/auth/register", json={"email": email, "password": "bardzo-bezpieczne-haslo-123", "first_name": "Jan", "last_name": "Testowy"}).status_code == 201
+        login = client.post("/api/v1/auth/login", json={"email": email, "password": "bardzo-bezpieczne-haslo-123"})
+        headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+        draft = client.post("/api/v1/prompts", json={"brief": "Chcę zbudować osobistego agenta biurowego.", "model_target": "chatgpt", "level": "professional", "category": "programming"}, headers=headers).json()
+
+        response = client.post(f"/api/v1/prompts/{draft['id']}/answers", json={"answers": {question: "Odbiorcą jestem ja." for question in draft["questions"]}}, headers=headers)
         assert response.status_code == 422
         assert "zbyt ogólna" in response.json()["detail"]
         assert client.get(f"/api/v1/prompts/{draft['id']}", headers=headers).json()["status"] == "needs_clarification"

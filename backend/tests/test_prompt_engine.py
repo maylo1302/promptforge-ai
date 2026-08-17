@@ -1,10 +1,54 @@
 from app.models import Prompt
 from app.services.prompt_engine import prompt_engine
+import pytest
 
 
 def test_brief_without_context_requires_clarification() -> None:
     questions = prompt_engine.clarification_questions("Chcę napisać książkę", "other")
     assert len(questions) >= 2
+
+
+def test_the_api_acronym_is_not_detected_inside_an_unrelated_polish_word() -> None:
+    profile = prompt_engine.classify_task("Chcę napisać książkę", "other")
+    assert profile is not None
+    assert profile.slug == "generic"
+
+
+@pytest.mark.parametrize(
+    ("brief", "category", "profile_slug", "question_prefix"),
+    [
+        ("Zbuduj aplikację do obsługi spraw kancelarii prawnej.", "law", "software_product", "Użytkownicy"),
+        ("Przygotuj kampanię reklamową kursu języka angielskiego.", "other", "marketing_campaign", "Odbiorca"),
+        ("Napisz tekst sprzedażowy dla aplikacji zdrowotnej.", "medicine", "copywriting", "Oferta"),
+        ("Przygotuj lekcję o pierwszej pomocy dla licealistów.", "medicine", "education", "Uczestnicy"),
+        ("Przeanalizuj dane sprzedażowe z pliku CSV za ostatni kwartał.", "business", "data_analysis", "Pytanie decyzyjne"),
+        ("Przygotuj przegląd literatury o wpływie snu na pamięć.", "medicine", "science", "Pytanie badawcze"),
+        ("Przeanalizuj umowę najmu lokalu użytkowego.", "other", "legal_analysis", "Sprawa"),
+        ("Wyjaśnij objawy grypy i sytuacje wymagające pilnej pomocy.", "other", "medical_information", "Cel"),
+        ("Przetłumacz instrukcję urządzenia z polskiego na angielski.", "other", "translation", "Języki"),
+        ("Przygotuj plan SEO dla sklepu z kosmetykami naturalnymi.", "marketing", "seo", "Strona i cel"),
+        ("Podejmij decyzję, czy otworzyć drugi punkt sprzedaży.", "other", "business_decision", "Decyzja"),
+        ("Ułóż harmonogram przeprowadzki do nowego mieszkania.", "other", "generic", "Rezultat i użycie"),
+    ],
+)
+def test_questions_follow_the_actual_task_even_when_selected_category_is_wrong(brief: str, category: str, profile_slug: str, question_prefix: str) -> None:
+    profile = prompt_engine.classify_task(brief, category)
+    assert profile is not None
+    assert profile.slug == profile_slug
+    assert any(question.startswith(question_prefix) for question in prompt_engine.clarification_questions(brief, category))
+
+
+@pytest.mark.parametrize(
+    ("question", "answer"),
+    [
+        ("Odbiorca: Kto skorzysta z rezultatu?", "Odbiorcą jestem ja."),
+        ("Zakres MVP: Co ma powstać?", "ma działać"),
+        ("Format: Jak ma wyglądać wynik?", "dowolnie"),
+        ("Odbiorca: Dla kogo?", "dla mnie"),
+    ],
+)
+def test_placeholder_answers_are_recognized_beyond_the_exact_phrase_ma_dzialac(question: str, answer: str) -> None:
+    assert prompt_engine.is_placeholder_answer(question, answer)
 
 
 def test_questions_match_detected_domain_and_skip_already_described_context() -> None:
@@ -125,6 +169,78 @@ def test_specific_answers_score_higher_than_generic_ones() -> None:
     assert specific_result.score >= 75
     assert specific_result.score >= generic_result.score + 45
     assert specific_result.analysis["quality_breakdown"]["Kara za ogólniki"] == 0
+
+
+def test_profile_score_requires_domain_coverage_and_generated_prompt_uses_domain_outline() -> None:
+    brief = "Przygotuj plan SEO dla sklepu z ekologicznymi kosmetykami w Polsce."
+    questions = prompt_engine.clarification_questions(brief, "marketing")
+    answers = {
+        next(question for question in questions if question.startswith("Strona i cel")): "Strona kategorii kremów do skóry wrażliwej w sklepie internetowym; ma zwiększać sprzedaż tej kategorii.",
+        next(question for question in questions if question.startswith("Intencja")): "Użytkownik szuka odpowiedzi, jaki krem ekologiczny wybrać do skóry wrażliwej.",
+        next(question for question in questions if question.startswith("Temat i frazy")): "Frazy: krem ekologiczny do skóry wrażliwej, naturalna pielęgnacja twarzy i kosmetyki bez zapachu.",
+        next(question for question in questions if question.startswith("Kontekst rynkowy")): "Punktem odniesienia są trzy sklepy z naturalnymi kosmetykami; wyróżniamy się certyfikatami i składem bez substancji zapachowych.",
+        next(question for question in questions if question.startswith("Pomiar")): "Mierzymy ruch organiczny, współczynnik konwersji i sprzedaż kategorii; celem jest wzrost ruchu o 25% oraz sprzedaży o 10% w 6 miesięcy.",
+    }
+    prompt = Prompt(brief=brief, model_target="chatgpt", level="professional", category="marketing", questions=list(questions), answers=answers)
+    result = prompt_engine.generate(prompt)
+
+    assert result.score >= 80
+    assert "Klaster tematów oraz priorytetowe frazy" in result.content
+    assert "Działania, mierniki, wartości docelowe" in result.content
+    assert any(name.startswith("Pokrycie wymagań: treść SEO") for name in result.analysis["quality_breakdown"])
+
+
+def test_personal_or_vague_answers_cannot_receive_a_high_domain_score() -> None:
+    brief = "Zbuduj aplikację do zarządzania magazynem."
+    questions = prompt_engine.clarification_questions(brief, "programming")
+    prompt = Prompt(
+        brief=brief,
+        model_target="chatgpt",
+        level="professional",
+        category="programming",
+        questions=list(questions),
+        answers={question: "Odbiorcą jestem ja." for question in questions},
+    )
+    result = prompt_engine.generate(prompt)
+
+    assert result.score <= 45
+    assert result.analysis["quality_breakdown"]["Kara za ogólniki"] < 0
+    assert result.analysis["missing_information"]
+
+
+def test_detailed_but_irrelevant_answers_leave_the_unanswered_domain_questions_open() -> None:
+    brief = "Zbuduj aplikację do zarządzania magazynem."
+    questions = prompt_engine.clarification_questions(brief, "programming")
+    irrelevant = "To ważny opis dla zespołu, który potrzebuje dobrego rezultatu w kolejnym miesiącu."
+    answers = {question: irrelevant for question in questions}
+
+    follow_up = prompt_engine.clarification_questions(brief, "programming", answers)
+    assert len(follow_up) >= 3
+    assert any(question.startswith("Dane i integracje") for question in follow_up)
+    assert any(question.startswith("Bezpieczeństwo") for question in follow_up)
+
+
+@pytest.mark.parametrize(
+    ("brief", "category", "expected_section"),
+    [
+        ("Zbuduj aplikację do zarządzania magazynem.", "programming", "Główne przepływy użytkownika"),
+        ("Przygotuj kampanię reklamową kursu językowego.", "marketing", "Plan kanałów z materiałem"),
+        ("Przeanalizuj dane sprzedażowe z pliku CSV.", "data_analysis", "Wnioski odróżnione od obserwacji"),
+        ("Podejmij decyzję o otwarciu drugiego punktu sprzedaży.", "business", "Porównanie realistycznych opcji"),
+        ("Napisz tekst sprzedażowy produktu.", "copywriting", "Gotową treść we wskazanym tonie"),
+        ("Przygotuj plan SEO dla sklepu z kosmetykami.", "seo", "Klaster tematów oraz priorytetowe frazy"),
+        ("Przeanalizuj umowę najmu.", "law", "Ryzyka oraz istotne zapisy dokumentów"),
+        ("Wyjaśnij objawy grypy.", "medicine", "Sygnały alarmowe"),
+        ("Przetłumacz instrukcję z polskiego na angielski.", "translation", "Tłumaczenie zachowujące znaczenie"),
+        ("Przygotuj lekcję o pierwszej pomocy.", "education", "Sposób sprawdzenia efektu nauki"),
+        ("Przygotuj przegląd literatury o śnie.", "science", "Wyniki oddzielone od interpretacji"),
+    ],
+)
+def test_generated_prompt_uses_a_domain_specific_result_outline(brief: str, category: str, expected_section: str) -> None:
+    prompt = Prompt(brief=brief, model_target="chatgpt", level="professional", category=category)
+    result = prompt_engine.generate(prompt)
+
+    assert expected_section in result.content
 
 
 def test_office_agent_uses_five_domain_questions_and_specialized_prompt() -> None:

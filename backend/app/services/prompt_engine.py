@@ -369,12 +369,22 @@ class PromptEngine:
 
     def topic_is_covered(self, profile: TaskProfile, topic: str, brief: str, answers: dict[str, str]) -> bool:
         answer = self.topic_answer(profile, topic, answers)
+        if profile.slug == "seo" and topic == "metryki":
+            return self.seo_measurement_is_covered(answer or brief)
         if answer:
             detail = self.answer_detail(answer)
             return detail >= 0.28 or (detail >= 0.14 and self.profile_topic_evidence(topic, answer))
         # Pojedyncze słowo (np. „codziennie”) nie jest jeszcze specyfikacją rutyny.
         # Uznajemy temat za opisany w samym briefie dopiero, gdy opis ma wyraźny kontekst.
         return len(self.meaningful_words(brief)) >= 15 and self.profile_topic_evidence(topic, brief)
+
+    def seo_measurement_is_covered(self, text: str) -> bool:
+        """SEO requires a measurable target, not merely a wish for more traffic or sales."""
+        normalized = text.lower()
+        has_metric = any(marker in normalized for marker in ("ruch", "widocz", "pozycj", "klik", "sesj", "konwers", "sprzeda", "przych", "lead", "zapyt"))
+        has_numeric_value = any(char.isdigit() for char in normalized)
+        has_target = any(marker in normalized for marker in ("cel", "target", "docelow", "wzrost", "spadek", "minimum", "maksimum", "co najmniej", "próg", "%", "procent"))
+        return has_metric and has_numeric_value and has_target
 
     def clarification_questions(self, brief: str, category: str, answers: dict[str, str] | None = None) -> list[str]:
         profile = self.classify_task(brief, category)

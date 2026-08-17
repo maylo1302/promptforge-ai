@@ -52,6 +52,16 @@ def test_translation_takes_priority_over_a_legal_document_or_legal_style() -> No
     assert questions[0].startswith("Terminologia")
 
 
+def test_seo_goal_without_a_numeric_target_still_requires_a_measurement_question() -> None:
+    brief = (
+        "Przygotuj plan SEO dla sklepu sprzedającego ekologiczne kosmetyki w Polsce. "
+        "Celem jest zwiększenie ruchu organicznego i sprzedaży w ciągu sześciu miesięcy."
+    )
+
+    questions = prompt_engine.clarification_questions(brief, "marketing")
+    assert any(question.startswith("Pomiar") for question in questions)
+
+
 def test_follow_up_questions_only_cover_the_remaining_gap() -> None:
     brief = "Przetłumacz instrukcję obsługi produktu dla klientów biznesowych."
     questions = prompt_engine.clarification_questions(brief, "translation")

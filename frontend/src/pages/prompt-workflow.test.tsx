@@ -65,4 +65,13 @@ describe("workflow promptów", () => {
     await waitFor(() => expect(screen.getByText("Prompt został usunięty, a licznik historii odświeżony.")).toBeInTheDocument());
     await waitFor(() => expect(screen.getByText("0 promptów")).toBeInTheDocument());
   });
+
+  it("pokazuje bezpośrednią akcję kontynuowania zapisanego szkicu", async () => {
+    const draft: Prompt = { ...prompt, status: "needs_clarification", content: null, quality_score: null, questions: ["Jaki jest termin realizacji?"] };
+    vi.mocked(api).mockResolvedValueOnce({ items: [draft], total: 1 });
+
+    renderPage(<HistoryPage />);
+    const resume = await screen.findByRole("link", { name: "Kontynuuj szkic" });
+    expect(resume).toHaveAttribute("href", "/app/generator?szkic=prompt-1");
+  });
 });

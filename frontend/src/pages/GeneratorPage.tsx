@@ -33,6 +33,7 @@ export function GeneratorPage() {
   const [loadingDraft, setLoadingDraft] = useState(false);
   const [answering, setAnswering] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const form = useForm<Values>({ resolver: zodResolver(schema), mode: "onChange", defaultValues: { brief: "", model_target: "chatgpt", level: "professional", category: "programming" } });
 
   useEffect(() => {
@@ -54,6 +55,7 @@ export function GeneratorPage() {
 
   const create = form.handleSubmit(async (values) => {
     setError(null);
+    setNotice(null);
     try {
       const next = await api<Prompt>("/prompts", { method: "POST", body: JSON.stringify(values) });
       setPrompt(next);
@@ -62,6 +64,7 @@ export function GeneratorPage() {
       setSearchParams({});
       await queryClient.invalidateQueries({ queryKey: ["prompts"] });
       await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      setNotice("Szkic został zapisany w historii. Możesz teraz odpowiedzieć na pytania albo wrócić do niego później.");
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : "Nie udało się zapisać szkicu.");
     }
@@ -103,6 +106,7 @@ export function GeneratorPage() {
 
   return <>
     <PageHeading eyebrow="Generator promptów" title={draftId ? "Kontynuuj zapisany szkic" : "Opisz, co chcesz osiągnąć"} description={draftId ? "Szkic został wcześniej zapisany. Uzupełnij brakujące odpowiedzi, aby go dokończyć." : "Nie musisz znać idealnego promptu. Zacznij od celu — pomożemy wydobyć kontekst, który zmienia wynik."} />
+    {notice && <p role="status" className="mb-5 rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200">{notice} <Link to="/app/historia" className="underline underline-offset-2">Otwórz historię</Link></p>}
     <div className="grid items-start gap-6 xl:grid-cols-[.9fr_1.1fr]">
       <Card><CardTitle>{draftId ? "Dane szkicu" : "Twój zamiar"}</CardTitle><form onSubmit={create} className="space-y-5">
         <label><span className="label">Co chcesz osiągnąć?</span><textarea className="input min-h-48 resize-y leading-relaxed" placeholder="Np. Chcę stworzyć aplikację do zarządzania magazynem dla firmy handlowej." {...form.register("brief")} /><span className="mt-1.5 block text-xs text-slate-400">Po kliknięciu zapisujemy szkic w historii. Możesz wrócić do niego później.</span>{form.formState.errors.brief && <span className="mt-1 block text-xs font-bold text-rose-600">{form.formState.errors.brief.message}</span>}</label>

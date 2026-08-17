@@ -40,7 +40,7 @@ export function HistoryPage() {
     try {
       await api(`/prompts/${prompt.id}`, { method: "DELETE" });
       await Promise.all([queryClient.invalidateQueries({ queryKey: ["prompts"] }), queryClient.invalidateQueries({ queryKey: ["dashboard"] })]);
-      setFeedback({ kind: "success", message: "Prompt został usunięty, a licznik historii odświeżony." });
+      setFeedback({ kind: "success", message: "Prompt został usunięty." });
     } catch {
       setFeedback({ kind: "error", message: "Nie udało się usunąć promptu. Wpis pozostał w historii." });
     } finally {

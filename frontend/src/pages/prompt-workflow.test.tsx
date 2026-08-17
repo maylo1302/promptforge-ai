@@ -79,7 +79,7 @@ describe("workflow promptów", () => {
     renderPage(<HistoryPage />);
     expect(await screen.findByText("1 promptów")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Usuń prompt" }));
-    await waitFor(() => expect(screen.getByText("Prompt został usunięty, a licznik historii odświeżony.")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Prompt został usunięty.")).toBeInTheDocument());
     await waitFor(() => expect(screen.getByText("0 promptów")).toBeInTheDocument());
   });
 

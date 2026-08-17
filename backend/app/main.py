@@ -23,7 +23,7 @@ app.add_middleware(CORSMiddleware, allow_origins=settings.origins, allow_credent
 
 @app.middleware("http")
 async def security_middleware(request: Request, call_next):
-    if request.url.path != "/health":
+    if request.url.path not in {"/health", "/healthz"}:
         try:
             rate_limiter.check(request)
         except Exception as exc:
@@ -40,6 +40,7 @@ async def security_middleware(request: Request, call_next):
 
 
 @app.get("/health", tags=["System"])
+@app.get("/healthz", include_in_schema=False)
 def health() -> dict[str, str]:
     return {"status": "ok", "service": "promptforge-api"}
 
@@ -49,4 +50,3 @@ app.include_router(users.router, prefix="/api/v1")
 app.include_router(dashboard.router, prefix="/api/v1")
 app.include_router(prompts.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
-
